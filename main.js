@@ -7,82 +7,101 @@ import { PDFParse } from 'pdf-parse';
 var fileLinks = [];
 
 const months = ["january", "febuary", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-const excludesFinal = ["--  of  --", "Updated: ", "Breakfast Menu -", "/", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-const monthDays = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"];
 const keywords = ["hs", "breakfast-august-september"];
 const menuOptions = [
-    "Honey Cheerios", "Cream CheeseFilled Bagel Bites", "Mini Pancakes", "Liege Waffle", "Cinnamon Toast Crunch", "Vanilla CreamFilled Breadstick",
-    "Apple Cinnamon Muffin", "French Toast Sticks", "Cinnamon Roll", "Croissant", "No School for Students", "Orange Chicken with Brown Rice",
-    "Cheesy Garlic Twists", "Chicken tenders with Onion Rings", "Birria and Cheese Pupusa Bean and Cheese Pupusa", "Chicken Fillet Sandwich",
-    "Buffalo Chicken Bites", "Korean-Style Chicken with Brown Rice", "CheeseburgerHamburger", "Spicy Sichuan Chicken with Brown Rice",
-    "Chicken Dumplings", "Lemon Chicken with Brown Rice", "Oven Fried Rice with Tofu"
+    "HoneyCheerios", "CreamCheeseFilledBagelBites", "MiniPancakes", "LiegeWaffle", "CinnamonToastCrunch", "VanillaCreamFilledBreadstick",
+    "AppleCinnamonMuffin", "FrenchToastSticks", "CinnamonRoll", "Croissant", "NoSchoolforStudents", "OrangeChickenwithBrownRice",
+    "CheesyGarlicTwists", "ChickentenderswithOnionRings", "BirriaandCheesePupusaBeanandCheesePupusa", "ChickenFilletSandwich",
+    "BuffaloChicken Bites", "Korean-StyleChickenwithBrownRice", "CheeseburgerHamburger", "SpicySichuanChickenwithBrownRice",
+    "ChickenDumplings", "LemonChickenwithBrownRice", "OvenFriedRicewithTofu", "BurritoBar", "Pizza"
 ]
 const excludes = ["access"];
 const downloadedFilePaths = [];
 
 async function downloadFile(url, fileName) {
-  const response = await fetch(url);
-  
-  if (!response.ok) {
-    throw new Error(`Failed to fetch file: ${response.statusText}`);
-  }
+    const response = await fetch(url);
 
-  const destination = fs.createWriteStream(fileName);
-  const bodyStream = Readable.fromWeb(response.body);
-  await finished(bodyStream.pipe(destination));
-  
-  console.log(`Download complete: ${fileName}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
+
+    const destination = fs.createWriteStream(fileName);
+    const bodyStream = Readable.fromWeb(response.body);
+    await finished(bodyStream.pipe(destination));
+
+    console.log(`Download complete: ${fileName}`);
 }
-
-async function parseFile(url){
+async function parseFile(url) {
 
     const parser = new PDFParse({ url: url });
-	const result = await parser.getText();
-	return result.text;
+    const result = await parser.getText();
+    return result.text;
 
 }
-function cleanFile(txt){
+function createFlexibleRegex(targetString) {
+    const escaped = targetString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = escaped
+        .split(/\s+/)
+        .map(word => word.split('').join('\\s*'))
+        .join('\\s+');
+
+    return new RegExp(pattern, 'i');
+}
+function cleanFile(txt, year, startMonth) {
     var lunchInOrder = [];
     var daysInOrder = [];
     var cleantxt = txt.replaceAll('Vegetarian option - may contain cheese and/or egg1% plain milk, fat free plain milk, 1/2 cup of fruit and a 1/2 cup of 100% juice are offered daily with each breakfast. Students MUST choose at least ½ cup of fruit.Menu is subject to change. This institution is an equal opportunity provider.', '');
+
     cleantxt = cleantxt
-    .replace(/--.*?--/g, '') 
-    .replace(/\d+\/\d+\/\d+/g, '')
-    .replace(/August\/September\s+\d+/gi, '')
-    .replace('-- 1 of 1 --', '');
+        .replace(/--.*?--/g, '')
+        .replace(/\d+\/\d+\/\d+/g, '')
+        .replace(/August\/September\s+\d+/gi, '')
+        .replace('-- 1 of 1 --', '')
+        .replace(/[cheese, pepperoni, specialty]\s+pizza/gi, '')
+        .replace(/burrito\s+bar/gi);
     var dayRegex = /(\d+)/g;
     var match;
-    
+
+    var prev = -1;
+    startMonth = months.indexOf(startMonth.toLowerCase()) + 1;
+    console.log(year);
     while ((match = dayRegex.exec(cleantxt)) !== null) {
-        daysInOrder.push(match[1]);
+        if (prev == -1) {
+            prev = match[0];
+        }
+        if (parseInt(match[0]) < prev) {
+            if (startMonth < months.length) {
+                startMonth++;
+            }
+            else {
+                startMonth = 0;
+            }
+        }
+        daysInOrder.push(startMonth + "/" + match[0].toString() + "/" + year);
+        prev = match[1];
     }
     console.log(daysInOrder);
-    
-    for(var i = 0; i < excludesFinal.length; i++){
-        cleantxt = cleantxt.replaceAll(excludesFinal[i], '');
-    }
-    for(var i = 0; i < months.length; i++){
-        cleantxt = cleantxt.toLowerCase().replaceAll(months[i], '');
-    }
 
-    while(1 == 1){
+    while (true) {
         var lowIDX = Infinity;
-        var lowIDXMO = Infinity;
-        for(var i = 0; i < menuOptions.length; i++){
-            var idxOf = cleantxt.indexOf(menuOptions[i].toLowerCase());
-            if(idxOf != -1 && idxOf < lowIDX){
-                lowIDX = idxOf;
+        var lowIDXMO = -1;
+
+        for (var i = 0; i < menuOptions.length; i++) {
+            var match = createFlexibleRegex(menuOptions[i]).exec(cleantxt);
+            if (match !== null && match.index < lowIDX) {
+                lowIDX = match.index;
                 lowIDXMO = i;
             }
         }
-        if(lowIDX == Infinity){
+        if (lowIDXMO === -1) {
             break;
         }
-        cleantxt = cleantxt.replace(menuOptions[lowIDXMO].toLowerCase(), '');
-        lunchInOrder.push({ day: daysInOrder[lunchInOrder.length] , option: menuOptions[lowIDXMO] });
 
+        console.log(createFlexibleRegex(menuOptions[lowIDXMO]).toString());
+        cleantxt = cleantxt.replace(createFlexibleRegex(menuOptions[lowIDXMO]), '');
+        lunchInOrder.push({ day: daysInOrder[lunchInOrder.length], option: menuOptions[lowIDXMO] });
     }
-    if(daysInOrder.length != lunchInOrder.length){
+    if (daysInOrder.length != lunchInOrder.length) {
         console.warn("Note: Days detected and Food detected lists are not the same length. Expect some issues!");
         console.log("days detected - " + daysInOrder.length);
         console.log("food detected - " + lunchInOrder.length);
@@ -96,22 +115,26 @@ const Start = async () => {
     const $ = cheerio.load(data);
 
     const links = $('a').map((i, el) => {
-    const $el = $(el);
-    
-    return {
-        href: $el.attr('href') || null,
-        label: $el.attr('data-file-name') || null
-    };
+        const $el = $(el);
+
+        return {
+            href: $el.attr('href') || null,
+            label: $el.attr('data-file-name') || null
+        };
     }).get();
 
-    for(var i = 0; i < links.length; i++){
-        if(links[i].label != null && (months.some(month => links[i].label.toLowerCase().includes(month)) && keywords.some(keyword => links[i].label.toLowerCase().includes(keyword)) && !excludes.some(exclude => links[i].label.toLowerCase().includes(exclude)))){
+    for (var i = 0; i < links.length; i++) {
+        if (links[i].label != null && (months.some(month => links[i].label.toLowerCase().includes(month)) && keywords.some(keyword => links[i].label.toLowerCase().includes(keyword)) && !excludes.some(exclude => links[i].label.toLowerCase().includes(exclude)))) {
             console.log(links[i].label);
             const parsedFile = await parseFile("https://www.pps.net" + links[i].href);
             console.log("\n\n----------Parsed File Start----------");
             console.log(parsedFile);
             console.log("-----------Parsed File End-----------");
-            fs.writeFile(links[i].label.replaceAll('.pdf', '.txt'), cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString()), 'utf8', (err) => {
+            var regexYear = /(\d\d\d\d)/i;
+            var regexMonth = new RegExp(months.join('|'), 'i');
+            var match = links[i].label.match(regexMonth);
+            console.log(match[0].toString());
+            fs.writeFile(links[i].label.replaceAll('.pdf', '.txt'), cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0]), 'utf8', (err) => {
                 if (err) {
                     console.error('Error writing to file:', err);
                     return;
@@ -119,8 +142,6 @@ const Start = async () => {
                 console.log('File written successfully!');
             });
         }
-
     }
-    
 }
 Start();
