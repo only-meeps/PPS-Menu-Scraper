@@ -134,7 +134,7 @@ const Start = async () => {
             var regexMonth = new RegExp(months.join('|'), 'i');
             var match = links[i].label.match(regexMonth);
             console.log(match[0].toString());
-            fs.writeFile(links[i].label.replaceAll('.pdf', '.txt'), cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0]), 'utf8', (err) => {
+            fs.writeFile(links[i].label.replaceAll('.pdf', '.JSON'), cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0]), 'utf8', (err) => {
                 if (err) {
                     console.error('Error writing to file:', err);
                     return;
