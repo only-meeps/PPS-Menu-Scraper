@@ -4,6 +4,7 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import { PDFParse } from 'pdf-parse';
+
 var fileLinks = [];
 
 const months = ["january", "febuary", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -119,7 +120,7 @@ function cleanFile(txt, year, startMonth) {
         console.log("Recommended: Recheck the current menu options");
     }
 
-    return JSON.stringify(lunchInOrder);
+    return lunchInOrder;
 }
 const Start = async () => {
     const url = 'https://www.pps.net/departments/nutrition-services/menus';
@@ -140,31 +141,64 @@ const Start = async () => {
         };
     }).get();
     console.log("Links fetched successfully");
+    var fileContentsBreakfast;
+    var fileContentsLunch;
     for (var i = 0; i < links.length; i++) {
-        if (links[i].label != null && (months.some(month => links[i].label.toLowerCase().includes(month)) && keywords.some(keyword => links[i].label.toLowerCase().includes(keyword)) && !excludes.some(exclude => links[i].label.toLowerCase().includes(exclude)))) {
+        //console.log(links[i].label);
+
+        if (links[i].label != null && ((months.some(month => links[i].label.toLowerCase().includes(month)) && keywords.some(keyword => links[i].label.toLowerCase().includes(keyword)) && !excludes.some(exclude => links[i].label.toLowerCase().includes(exclude))) || links[i].label.includes("BreakfastAllGrades"))) {
             console.log("\nParsing file: " + links[i].label);
             const parsedFile = await parseFile("https://www.pps.net" + links[i].href);
-            console.log("File parsed (pdf -> txt) successfully");
+
+            //console.log("File parsed (pdf -> txt) successfully");
             //console.log("\n\n----------Parsed File Start----------");
             //console.log(parsedFile);
             //console.log("-----------Parsed File End-----------");
             var regexYear = /(\d\d\d\d)/i;
             var regexMonth = new RegExp(months.join('|'), 'i');
             var match = links[i].label.match(regexMonth);
-            //console.log(match[0].toString());
-            console.log("Creating file contents...");
-            var fileContents = cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0]);
-            console.log("File contents created successfully")
+            //console.log(match);
 
-            console.log("Writing json...");
-            fs.writeFile(links[i].label.replaceAll('.pdf', '.json'), fileContents, 'utf8', (err) => {
-                if (err) {
-                    console.error('Error writing to file:', err);
-                    return;
-                }
-                console.log('File written successfully');
-            });
+            //console.log(match[0].toString());    console.log(links[i].label);
+
+            console.log("Creating file contents...");
+            if (links[i].label.toString().toLowerCase().includes("breakfast")) {
+                //fileContentsBreakfast = fileContentsBreakfast + "," + JSON.stringify(cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0])).replaceAll("[", "").replaceAll("]", "");
+            }
+            else {
+                fileContentsLunch = fileContentsLunch + "," + JSON.stringify(cleanFile(parsedFile.replaceAll('\n', '').replaceAll('\r', '').toString(), regexYear.exec(links[i].label)[0], match[0])).replaceAll("[", "").replaceAll("]", "");
+            }
+            // console.log("File contents created successfully")
+
+            // console.log("Writing json...");
+            // fs.writeFile(links[i].label.replaceAll('.pdf', '.json'), fileContents, 'utf8', (err) => {
+            //     if (err) {
+            //         console.error('Error writing to file:', err);
+            //         return;
+            //     }
+            //     console.log('File written successfully');
+            // });
         }
+
     }
+    console.log("File contents created successfully")
+
+    // console.log("Writing breakfast json...");
+    // fs.writeFile("Breakfast.json", "[" + fileContentsBreakfast.toString().replace("undefined,", "") + "]", 'utf8', (err) => {
+    //     if (err) {
+    //         console.error('Error writing to file:', err);
+    //         return;
+    //     }
+    //     console.log('File written successfully');
+    // });
+
+    console.log("Writing lunch json...");
+    fs.writeFile("Lunch.json", "[" + fileContentsLunch.toString().replace("undefined,", "") + "]", 'utf8', (err) => {
+        if (err) {
+            console.error('Error writing to file:', err);
+            return;
+        }
+        console.log('File written successfully');
+    });
 }
 Start();
